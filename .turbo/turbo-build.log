@@ -1,0 +1,33 @@
+
+
+> @payloadcms/plugin-ecommerce@3.85.1 build /Users/milan/Documents/Desk/Apps/codadapter/payload/packages/plugin-ecommerce
+> pnpm copyfiles && pnpm build:types && pnpm build:swc
+
+../../templates/blank                    | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/blank/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/ecommerce                | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/ecommerce/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/website                  | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/website/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.neverBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.neverBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.overrides" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
+
+> @payloadcms/plugin-ecommerce@3.85.1 copyfiles /Users/milan/Documents/Desk/Apps/codadapter/payload/packages/plugin-ecommerce
+> copyfiles -u 1 "src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json}" dist/
+
+../../templates/blank                    | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/blank/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/ecommerce                | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/ecommerce/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/website                  | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/website/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.neverBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.neverBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.overrides" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
+
+> @payloadcms/plugin-ecommerce@3.85.1 build:types /Users/milan/Documents/Desk/Apps/codadapter/payload/packages/plugin-ecommerce
+> tsc --emitDeclarationOnly --outDir dist
+
+../../templates/blank                    | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/blank/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/ecommerce                | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/ecommerce/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../templates/website                  | [43m[30m WARN [39m[49m The field "pnpm.onlyBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/templates/website/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.neverBuiltDependencies" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.neverBuiltDependencies" at the root of the workspace instead.
+../../test                               | [43m[30m WARN [39m[49m The field "pnpm.overrides" was found in /Users/milan/Documents/Desk/Apps/codadapter/payload/test/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.
+
+> @payloadcms/plugin-ecommerce@3.85.1 build:swc /Users/milan/Documents/Desk/Apps/codadapter/payload/packages/plugin-ecommerce
+> swc ./src -d ./dist --config-file .swcrc --strip-leading-paths
+
+Successfully compiled: 115 files with swc (58.16ms)
