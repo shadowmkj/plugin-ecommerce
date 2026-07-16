@@ -36,6 +36,11 @@
       "types": "./dist/exports/types.d.ts",
       "default": "./dist/exports/types.js"
     },
+    "./payments/razorpay": {
+      "import": "./dist/exports/payments/razorpay.js",
+      "types": "./dist/exports/payments/razorpay.d.ts",
+      "default": "./dist/exports/payments/razorpay.js"
+    },
     "./payments/stripe": {
       "import": "./dist/exports/payments/stripe.js",
       "types": "./dist/exports/payments/stripe.d.ts",
@@ -91,6 +96,7 @@
   "dependencies": {
     "@payloadcms/translations": "workspace:*",
     "@payloadcms/ui": "workspace:*",
+    "razorpay": "2.9.6",
     "qs-esm": "8.0.1"
   },
   "devDependencies": {
@@ -119,6 +125,11 @@
         "import": "./dist/exports/types.js",
         "types": "./dist/exports/types.d.ts",
         "default": "./dist/exports/types.js"
+      },
+      "./payments/razorpay": {
+        "import": "./dist/exports/payments/razorpay.js",
+        "types": "./dist/exports/payments/razorpay.d.ts",
+        "default": "./dist/exports/payments/razorpay.js"
       },
       "./payments/stripe": {
         "import": "./dist/exports/payments/stripe.js",
