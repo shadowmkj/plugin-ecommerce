@@ -33,11 +33,7 @@ export const confirmOrder: (props: Props) => NonNullable<PaymentAdapter>['confir
           },
         })
 
-        console.log(paymentIntentID)
-        console.log(transactionsResults)
-
         const transaction = transactionsResults.docs[0]
-        console.log(transaction?.cart)
 
         if (!transactionsResults.totalDocs || !transaction) {
           throw new Error('No transaction found for the provided PaymentIntent ID')
