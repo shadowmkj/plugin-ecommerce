@@ -5,3 +5,4 @@ demo/uploads
 build
 .DS_Store
 package-lock.json
+tsconfig.tsbuildinfo
