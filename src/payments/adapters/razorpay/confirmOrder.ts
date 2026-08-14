@@ -1,7 +1,7 @@
 import Razorpay from 'razorpay'
 
 import type { PaymentAdapter } from '../../../types/index.js'
-import { RazorpayAdapterArgs } from './index.js'
+import type { RazorpayAdapterArgs } from './index.js'
 
 type Props = {
   secretKey: RazorpayAdapterArgs['secretKey']
@@ -35,22 +35,10 @@ export const confirmOrder: (props: Props) => NonNullable<PaymentAdapter>['confir
 
       const razorpay = new Razorpay({
         key_id: publishableKey,
-        key_secret: secretKey
+        key_secret: secretKey,
       })
 
       try {
-        // let customer = (
-        //   await razorpay.customers.list({
-        //     email: customerEmail,
-        //   })
-        // ).data[0]
-        //
-        // if (!customer?.id) {
-        //   customer = await razorpay.customers.create({
-        //     email: customerEmail,
-        //   })
-        // }
-
         const transactionsResults = await payload.find({
           collection: transactionsSlug,
           req,
@@ -73,12 +61,12 @@ export const confirmOrder: (props: Props) => NonNullable<PaymentAdapter>['confir
           throw new Error(`Payment not completed.`)
         }
 
-        const cartID = paymentIntent.notes.cartID
-        const cartItemsSnapshot = paymentIntent.notes.cartItemsSnapshot
+        const cartID = paymentIntent.notes?.cartID
+        const cartItemsSnapshot = paymentIntent.notes?.cartItemsSnapshot
           ? JSON.parse(paymentIntent.notes.cartItemsSnapshot)
           : undefined
 
-        const shippingAddress = paymentIntent.notes.shippingAddress
+        const shippingAddress = paymentIntent.notes?.shippingAddress
           ? JSON.parse(paymentIntent.notes.shippingAddress)
           : undefined
 
@@ -134,6 +122,6 @@ export const confirmOrder: (props: Props) => NonNullable<PaymentAdapter>['confir
       } catch (error) {
         payload.logger.error({ err: error, msg: 'Error confirming order with Razorpay' })
 
-        throw new Error(error instanceof Error ? error.message : 'Unknown error initiating payment')
+        throw new Error(error instanceof Error ? error.message : 'Unknown error confirming order')
       }
     }

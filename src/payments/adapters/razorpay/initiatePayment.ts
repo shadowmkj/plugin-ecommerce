@@ -2,7 +2,6 @@ import Razorpay from 'razorpay'
 
 import type { PaymentAdapter } from '../../../types/index.js'
 import type { InitiatePaymentReturnType, RazorpayAdapterArgs } from './index.js'
-import { ca } from 'payload/i18n/ca'
 
 type Props = {
   publishableKey: RazorpayAdapterArgs['publishableKey']
@@ -26,7 +25,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
         throw new Error('Razorpay secret key is required.')
       }
 
-      if (!currency) {
+      if (!currency || typeof currency !== 'string') {
         throw new Error('Currency is required.')
       }
 
@@ -44,20 +43,11 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
 
       const razorpay = new Razorpay({
         key_id: publishableKey,
-        key_secret: secretKey
+        key_secret: secretKey,
       })
 
       try {
-        // let customer = await razorpay.customers.all({
-        //   count: 1
-        // });
-
-
-        // if (!customer?.id) {
-        //   customer = await razorpay.customers.create({
-        //     email: customerEmail,
-        //   })
-        // }
+        const normalizedCurrency = currency.toUpperCase()
 
         const flattenedCart = cart.items.map((item) => {
           const productID = typeof item.product === 'object' ? item.product.id : item.product
@@ -83,12 +73,12 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
 
         const paymentIntent = await razorpay.orders.create({
           amount,
-          currency,
+          currency: normalizedCurrency,
           notes: {
             cartID: cart.id,
             cartItemsSnapshot: JSON.stringify(flattenedCart),
-            shippingAddress: shippingAddressAsString
-          }
+            shippingAddress: shippingAddressAsString,
+          },
         })
 
         // Create a transaction for the payment intent in the database
@@ -99,7 +89,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
             amount: paymentIntent.amount,
             billingAddress: billingAddressFromData,
             cart: cart.id,
-            currency: paymentIntent.currency.toUpperCase(),
+            currency: normalizedCurrency,
             items: flattenedCart,
             paymentMethod: 'razorpay',
             status: 'pending',
@@ -115,7 +105,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
           message: 'Payment initiated successfully',
           paymentIntentID: paymentIntent.id,
           amount: paymentIntent.amount,
-          method: 'razorpay'
+          method: 'razorpay',
         }
 
         return returnData

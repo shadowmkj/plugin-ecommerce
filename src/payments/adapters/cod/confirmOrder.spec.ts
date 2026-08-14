@@ -1,44 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCustomersList = vi.fn()
-const mockCustomersCreate = vi.fn()
-const mockPaymentIntentsRetrieve = vi.fn()
+import { confirmOrder } from './confirmOrder.js'
 
-vi.mock('cod', () => {
-  const MockCod = function () {
-    return {
-      customers: {
-        list: mockCustomersList,
-        create: mockCustomersCreate,
-      },
-      paymentIntents: {
-        retrieve: mockPaymentIntentsRetrieve,
-      },
-    }
-  }
-
-  return { default: MockCod }
-})
-
-import { confirmOrder } from './confirmOrder'
-
-const defaultCartItemsSnapshot = JSON.stringify([{ id: 'item-1', quantity: 1 }])
-
-const createMockPaymentIntent = (status: string) => ({
-  amount: 1000,
-  currency: 'usd',
-  metadata: {
-    cartID: 'cart-123',
-    cartItemsSnapshot: defaultCartItemsSnapshot,
-    shippingAddress: JSON.stringify({ city: 'Test City' }),
-  },
-  status,
-})
+const sampleTransaction = {
+  id: 'txn-123',
+  amount: 2500,
+  billingAddress: { line1: '123 Main St' },
+  cart: { id: 'cart-123' },
+  currency: 'USD',
+  items: [{ product: 'prod-1', quantity: 2 }],
+}
 
 const createMockPayload = () => ({
   create: vi.fn().mockResolvedValue({ id: 'order-123' }),
   find: vi.fn().mockResolvedValue({
-    docs: [{ id: 'txn-123' }],
+    docs: [sampleTransaction],
     totalDocs: 1,
   }),
   logger: { error: vi.fn() },
@@ -51,98 +27,90 @@ const createMockReq = (payload: ReturnType<typeof createMockPayload>) =>
     user: { id: 'user-123' },
   }) as any
 
-describe('confirmOrder - payment status check', () => {
-  const secretKey = 'sk_test_123'
-
+describe('COD confirmOrder adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockCustomersList.mockResolvedValue({ data: [{ id: 'cus-123' }] })
-    mockCustomersCreate.mockResolvedValue({ id: 'cus-new' })
   })
 
-  it('should throw when paymentIntent status is requires_payment_method', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
-
+  it('should throw an error when paymentIntentID is missing', async () => {
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({})
 
     await expect(
       handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+        data: { customerEmail: 'test@example.com', paymentIntentID: '' },
         req: createMockReq(mockPayload),
       }),
-    ).rejects.toThrow('Payment not completed.')
+    ).rejects.toThrow('PaymentIntent ID is required')
+
+    expect(mockPayload.find).not.toHaveBeenCalled()
+  })
+
+  it('should throw an error when no matching transaction is found in database', async () => {
+    const mockPayload = createMockPayload()
+    mockPayload.find.mockResolvedValueOnce({ docs: [], totalDocs: 0 })
+
+    const handler = confirmOrder({})
+
+    await expect(
+      handler({
+        data: { customerEmail: 'test@example.com', paymentIntentID: 'txn-nonexistent' },
+        req: createMockReq(mockPayload),
+      }),
+    ).rejects.toThrow('No transaction found for the provided PaymentIntent ID')
 
     expect(mockPayload.create).not.toHaveBeenCalled()
   })
 
-  it('should throw when paymentIntent status is canceled', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('canceled'))
-
+  it('should create order and update cart/transaction status upon successful COD order confirmation', async () => {
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
-
-    await expect(
-      handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
-        req: createMockReq(mockPayload),
-      }),
-    ).rejects.toThrow('Payment not completed.')
-
-    expect(mockPayload.create).not.toHaveBeenCalled()
-  })
-
-  it('should throw when paymentIntent status is processing', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('processing'))
-
-    const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
-
-    await expect(
-      handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
-        req: createMockReq(mockPayload),
-      }),
-    ).rejects.toThrow('Payment not completed.')
-
-    expect(mockPayload.create).not.toHaveBeenCalled()
-  })
-
-  it('should not update cart or transaction when payment has not succeeded', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
-
-    const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
-
-    await expect(
-      handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
-        req: createMockReq(mockPayload),
-      }),
-    ).rejects.toThrow()
-
-    expect(mockPayload.update).not.toHaveBeenCalled()
-  })
-
-  it('should create order when paymentIntent status is succeeded', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('succeeded'))
-
-    const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({})
 
     const result = await handler({
-      data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+      data: { customerEmail: 'test@example.com', paymentIntentID: 'txn-123' },
       req: createMockReq(mockPayload),
     })
+
+    expect(mockPayload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'transactions',
+        where: {
+          id: { equals: 'txn-123' },
+        },
+      }),
+    )
 
     expect(mockPayload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'orders',
         data: expect.objectContaining({
-          amount: 1000,
+          amount: 2500,
           currency: 'USD',
+          customer: 'user-123',
+          items: sampleTransaction.items,
           status: 'processing',
+          transactions: ['txn-123'],
+        }),
+      }),
+    )
+
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'carts',
+        id: 'cart-123',
+        data: expect.objectContaining({
+          purchasedAt: expect.any(String),
+        }),
+      }),
+    )
+
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'transactions',
+        id: 'txn-123',
+        data: expect.objectContaining({
+          order: 'order-123',
+          status: 'succeeded',
         }),
       }),
     )
