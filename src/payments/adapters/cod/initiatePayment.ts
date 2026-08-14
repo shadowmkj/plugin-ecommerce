@@ -1,5 +1,5 @@
 import type { PaymentAdapter } from '../../../types/index.js'
-import type { InitiatePaymentReturnType, CodAdapterArgs } from './index.js'
+import type { InitiatePaymentReturnType } from './index.js'
 
 type Props = {}
 
@@ -16,7 +16,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
       const billingAddressFromData = data.billingAddress
       const shippingAddressFromData = data.shippingAddress
 
-      if (!currency) {
+      if (!currency || typeof currency !== 'string') {
         throw new Error('Currency is required.')
       }
 
@@ -32,8 +32,8 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
         throw new Error('A valid amount is required to initiate a payment.')
       }
 
-
       try {
+        const normalizedCurrency = currency.toUpperCase()
 
         const flattenedCart = cart.items.map((item) => {
           const productID = typeof item.product === 'object' ? item.product.id : item.product
@@ -57,24 +57,18 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
 
         const shippingAddressAsString = JSON.stringify(shippingAddressFromData)
 
-        //NOTE: Dummy customer
-        const customer = {
-          id: "1",
-
-        }
-
-        //NOTE: Dummy payment intent
+        //NOTE: Dummy payment intent for COD adapter
         const paymentIntent = {
-          id: "19",
+          id: '19',
           status: 'succeeded',
           amount,
-          currency: "USD",
-          client_secret: "secret",
+          currency: normalizedCurrency,
+          client_secret: 'secret',
           metadata: {
-            cartID: "10",
+            cartID: cart.id,
             cartItemsSnapshot: JSON.stringify(flattenedCart),
-            shippingAddress: ""
-          }
+            shippingAddress: shippingAddressAsString,
+          },
         }
 
         // Create a transaction for the payment intent in the database
@@ -85,7 +79,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
             amount: paymentIntent.amount,
             billingAddress: billingAddressFromData,
             cart: cart.id,
-            currency: paymentIntent.currency.toUpperCase(),
+            currency: normalizedCurrency,
             items: flattenedCart,
             paymentMethod: 'cod',
             status: 'pending',
@@ -97,7 +91,7 @@ export const initiatePayment: (props: Props) => NonNullable<PaymentAdapter>['ini
           clientSecret: paymentIntent.client_secret || '',
           message: 'Payment initiated successfully',
           paymentIntentID: String(transaction.id),
-          method: 'cod'
+          method: 'cod',
         }
         return returnData
       } catch (error) {
