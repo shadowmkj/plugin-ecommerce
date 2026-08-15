@@ -914,13 +914,19 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       localStorage.removeItem(`${localStorageConfig.key}_secret`)
     }
 
-    // Check if user has an existing cart
-    const userCartID =
-      fetchedUser.cart?.docs && fetchedUser.cart.docs.length > 0
-        ? typeof fetchedUser.cart.docs[0] === 'object'
-          ? fetchedUser.cart.docs[0].id
-          : fetchedUser.cart.docs[0]
-        : undefined
+    // Check if user has an existing active (unpurchased) cart
+    const activeCartDoc = fetchedUser.cart?.docs?.find((doc: any) => {
+      if (typeof doc === 'object' && doc !== null) {
+        return !doc.purchasedAt
+      }
+      return true
+    })
+
+    const userCartID = activeCartDoc
+      ? typeof activeCartDoc === 'object'
+        ? activeCartDoc.id
+        : activeCartDoc
+      : undefined
 
     if (guestCartID && guestSecret) {
       // Guest had a cart - need to handle merge/transfer
@@ -1025,9 +1031,18 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
       void getUser().then((user) => {
         if (user && user.cart?.docs && user.cart.docs.length > 0) {
-          // If the user has carts, we can set the cartID to the first cart
-          const cartID =
-            typeof user.cart.docs[0] === 'object' ? user.cart.docs[0].id : user.cart.docs[0]
+          const activeUserCartDoc = user.cart.docs.find((doc: any) => {
+            if (typeof doc === 'object' && doc !== null) {
+              return !doc.purchasedAt
+            }
+            return true
+          })
+
+          const cartID = activeUserCartDoc
+            ? typeof activeUserCartDoc === 'object'
+              ? activeUserCartDoc.id
+              : activeUserCartDoc
+            : undefined
 
           if (cartID) {
             getCart(cartID)

@@ -1,23 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCustomersList = vi.fn()
-const mockCustomersCreate = vi.fn()
-const mockPaymentIntentsRetrieve = vi.fn()
+const mockFetch = vi.fn()
 
-vi.mock('stripe', () => {
-  const MockStripe = function () {
+vi.mock('razorpay', () => {
+  const MockRazorpay = function () {
     return {
-      customers: {
-        list: mockCustomersList,
-        create: mockCustomersCreate,
-      },
-      paymentIntents: {
-        retrieve: mockPaymentIntentsRetrieve,
+      payments: {
+        fetch: mockFetch,
       },
     }
   }
 
-  return { default: MockStripe }
+  return { default: MockRazorpay }
 })
 
 import { confirmOrder } from './confirmOrder'
@@ -27,7 +21,7 @@ const defaultCartItemsSnapshot = JSON.stringify([{ id: 'item-1', quantity: 1 }])
 const createMockPaymentIntent = (status: string) => ({
   amount: 1000,
   currency: 'usd',
-  metadata: {
+  notes: {
     cartID: 'cart-123',
     cartItemsSnapshot: defaultCartItemsSnapshot,
     shippingAddress: JSON.stringify({ city: 'Test City' }),
@@ -53,19 +47,17 @@ const createMockReq = (payload: ReturnType<typeof createMockPayload>) =>
 
 describe('confirmOrder - payment status check', () => {
   const secretKey = 'sk_test_123'
+  const publishableKey = 'rzp_test_123'
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockCustomersList.mockResolvedValue({ data: [{ id: 'cus-123' }] })
-    mockCustomersCreate.mockResolvedValue({ id: 'cus-new' })
   })
 
   it('should throw when paymentIntent status is requires_payment_method', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
 
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({ publishableKey, secretKey })
 
     await expect(
       handler({
@@ -78,14 +70,14 @@ describe('confirmOrder - payment status check', () => {
   })
 
   it('should throw when paymentIntent status is canceled', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('canceled'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('canceled'))
 
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({ publishableKey, secretKey })
 
     await expect(
       handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123', razorpay_payment_id: 'pay_123' },
         req: createMockReq(mockPayload),
       }),
     ).rejects.toThrow('Payment not completed.')
@@ -94,14 +86,14 @@ describe('confirmOrder - payment status check', () => {
   })
 
   it('should throw when paymentIntent status is processing', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('processing'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('processing'))
 
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({ publishableKey, secretKey })
 
     await expect(
       handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123', razorpay_payment_id: 'pay_123' },
         req: createMockReq(mockPayload),
       }),
     ).rejects.toThrow('Payment not completed.')
@@ -110,14 +102,14 @@ describe('confirmOrder - payment status check', () => {
   })
 
   it('should not update cart or transaction when payment has not succeeded', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
 
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({ publishableKey, secretKey })
 
     await expect(
       handler({
-        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+        data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123', razorpay_payment_id: 'pay_123' },
         req: createMockReq(mockPayload),
       }),
     ).rejects.toThrow()
@@ -126,13 +118,13 @@ describe('confirmOrder - payment status check', () => {
   })
 
   it('should create order when paymentIntent status is succeeded', async () => {
-    mockPaymentIntentsRetrieve.mockResolvedValue(createMockPaymentIntent('succeeded'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('captured'))
 
     const mockPayload = createMockPayload()
-    const handler = confirmOrder({ secretKey })
+    const handler = confirmOrder({ publishableKey, secretKey })
 
     const result = await handler({
-      data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123' },
+      data: { customerEmail: 'test@test.com', paymentIntentID: 'pi_123', razorpay_payment_id: 'pay_123' },
       req: createMockReq(mockPayload),
     })
 
