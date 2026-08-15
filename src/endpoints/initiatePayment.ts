@@ -377,6 +377,7 @@ export const initiatePaymentHandler: InitiatePayment =
           },
         )
       }
+      }
 
       try {
         const paymentResponse = await paymentMethod.initiatePayment({
