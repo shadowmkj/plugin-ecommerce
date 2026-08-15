@@ -989,8 +989,6 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       localStorage.removeItem(`${localStorageConfig.key}_secret`)
     }
 
-    // Check if user has an existing active (unpurchased) cart
-<<<<<<< HEAD
     // For ID-only references, we need to fetch the cart to check purchasedAt
     let userCartID: DefaultDocumentIDType | undefined
 
@@ -1020,20 +1018,6 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         }
       }
     }
-=======
-    const activeCartDoc = fetchedUser.cart?.docs?.find((doc: any) => {
-      if (typeof doc === 'object' && doc !== null) {
-        return !doc.purchasedAt
-      }
-      return true
-    })
-
-    const userCartID = activeCartDoc
-      ? typeof activeCartDoc === 'object'
-        ? activeCartDoc.id
-        : activeCartDoc
-      : undefined
->>>>>>> 56a9c14 (feat(endpoints): add payment retry logic and cart status validation)
 
     if (guestCartID && guestSecret) {
       // Guest had a cart - need to handle merge/transfer
@@ -1172,24 +1156,8 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       hasRendered.current = true
 
       void getUser().then(async (user) => {
-        if (user && user.cart?.docs && user.cart.docs.length > 0) {
-<<<<<<< HEAD
           // Find active (unpurchased) cart, resolving ID-only references
           let activeCartID: DefaultDocumentIDType | undefined
-=======
-          const activeUserCartDoc = user.cart.docs.find((doc: any) => {
-            if (typeof doc === 'object' && doc !== null) {
-              return !doc.purchasedAt
-            }
-            return true
-          })
-
-          const cartID = activeUserCartDoc
-            ? typeof activeUserCartDoc === 'object'
-              ? activeUserCartDoc.id
-              : activeUserCartDoc
-            : undefined
->>>>>>> 56a9c14 (feat(endpoints): add payment retry logic and cart status validation)
 
           for (const doc of user.cart.docs) {
             if (typeof doc === 'object' && doc !== null) {
@@ -1215,7 +1183,6 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
               }
             }
           }
-
           if (activeCartID) {
             getCart(activeCartID)
               .then((fetchedCart) => {

@@ -86,14 +86,35 @@ export const confirmOrderEndpoint = ({
     }
 
     const data = (req.data || {}) as Record<string, unknown>
-    const customerEmail = data.customerEmail as string | undefined
+    let customerEmail = data.customerEmail as string | undefined
+    const cartSecret = data.secret as string | undefined
 
     let cart = data.cart as CartsCollection | undefined
     const cartID = data.cartID as string | undefined
     let currency: string | undefined
 
-    if (!cart) {
+    if (req.user && typeof req.user === 'object' && 'email' in req.user) {
+      customerEmail = req.user.email as string
+    } else if (data?.customerEmail && typeof data.customerEmail === 'string') {
+      customerEmail = data.customerEmail
+    } else {
+      return Response.json(
+        {
+          message: 'A customer email is required to make a purchase.',
+        },
+        {
+          status: 400,
+        },
+      )
+    }
+
+    if (!cart || !cart.items || !Array.isArray(cart.items)) {
       if (cartID) {
+        if (cartSecret && typeof cartSecret === 'string') {
+          req.query = req.query || {}
+          req.query.secret = cartSecret
+        }
+
         cart = await req.payload.findByID({
           id: cartID,
           collection: cartsSlug,
@@ -147,7 +168,6 @@ export const confirmOrderEndpoint = ({
       currency = cart.currency
     }
 
-    // Ensure the currency is provided or inferred in some way
     if (!currency) {
       return Response.json(
         {
@@ -185,7 +205,6 @@ export const confirmOrderEndpoint = ({
           },
         })
 
-        // Only decrement inventory if transaction succeeded and inventory hasn't been decremented yet
         if (
           transaction &&
           transaction.status === 'succeeded' &&
@@ -221,7 +240,6 @@ export const confirmOrderEndpoint = ({
             }
           }
 
-          // Mark inventory as decremented to prevent duplicate decrements
           await payload.update({
             id: transaction.id,
             collection: transactionsSlug,

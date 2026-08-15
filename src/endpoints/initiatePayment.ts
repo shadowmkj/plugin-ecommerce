@@ -355,13 +355,27 @@ export const initiatePaymentHandler: InitiatePayment =
 
         if (existingPending?.docs && existingPending.docs.length > 0) {
           for (const pendingTx of existingPending.docs) {
-            await payload.update({
+            // Only transition to cancelled if still in pending status to avoid overwriting concurrent updates
+            await payload.db.updateOne({
               id: pendingTx.id,
               collection: transactionsSlug,
               data: {
                 status: 'cancelled',
               },
-              req,
+              where: {
+                and: [
+                  {
+                    id: {
+                      equals: pendingTx.id,
+                    },
+                  },
+                  {
+                    status: {
+                      equals: 'pending',
+                    },
+                  },
+                ],
+              },
             })
           }
         }
