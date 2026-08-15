@@ -355,18 +355,41 @@ export const initiatePaymentHandler: InitiatePayment =
 
         if (existingPending?.docs && existingPending.docs.length > 0) {
           for (const pendingTx of existingPending.docs) {
-            await payload.update({
+            // Only transition to cancelled if still in pending status to avoid overwriting concurrent updates
+            await payload.db.updateOne({
               id: pendingTx.id,
               collection: transactionsSlug,
               data: {
                 status: 'cancelled',
               },
-              req,
+              where: {
+                and: [
+                  {
+                    id: {
+                      equals: pendingTx.id,
+                    },
+                  },
+                  {
+                    status: {
+                      equals: 'pending',
+                    },
+                  },
+                ],
+              },
             })
           }
         }
-      } catch (_err) {
-        // Silently continue if previous transaction cleanup fails
+      } catch (err) {
+        // If cleanup fails, propagate the error to prevent initiating a new payment with inconsistent state
+        payload.logger.error(err, 'Failed to cleanup pending transactions')
+        return Response.json(
+          {
+            message: 'Failed to cleanup pending transactions. Please try again.',
+          },
+          {
+            status: 500,
+          },
+        )
       }
 
       try {

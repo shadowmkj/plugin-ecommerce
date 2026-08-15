@@ -122,6 +122,7 @@ export const confirmOrderHandler: ConfirmOrderHandler =
               currency: true,
               customerEmail: true,
               items: true,
+              purchasedAt: true,
               subtotal: true,
             },
           })
@@ -146,6 +147,17 @@ export const confirmOrderHandler: ConfirmOrderHandler =
             },
           )
         }
+      }
+
+      if (cart.purchasedAt) {
+        return Response.json(
+          {
+            message: 'This cart has already been purchased.',
+          },
+          {
+            status: 400,
+          },
+        )
       }
 
       if (cart.currency && typeof cart.currency === 'string') {
@@ -184,11 +196,20 @@ export const confirmOrderHandler: ConfirmOrderHandler =
             depth: 0,
             select: {
               id: true,
+              inventoryDecremented: true,
               items: true,
+              status: true,
             },
           })
 
-          if (transaction && Array.isArray(transaction.items) && transaction.items.length > 0) {
+          // Only decrement inventory if transaction succeeded and inventory hasn't been decremented yet
+          if (
+            transaction &&
+            transaction.status === 'succeeded' &&
+            !transaction.inventoryDecremented &&
+            Array.isArray(transaction.items) &&
+            transaction.items.length > 0
+          ) {
             for (const item of transaction.items) {
               if (item.variant) {
                 const id = typeof item.variant === 'object' ? item.variant.id : item.variant
@@ -216,6 +237,15 @@ export const confirmOrderHandler: ConfirmOrderHandler =
                 })
               }
             }
+
+            // Mark inventory as decremented to prevent duplicate decrements
+            await payload.update({
+              id: transaction.id,
+              collection: transactionsSlug,
+              data: {
+                inventoryDecremented: true,
+              },
+            })
           }
         }
 

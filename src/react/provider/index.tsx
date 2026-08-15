@@ -546,8 +546,51 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
           })
 
           if (response.ok) {
-            setSelectedCurrency(foundCurrency)
-            await refreshCart()
+            // Build query with the new currency to fetch cart with correct price fields
+            const priceField = `priceIn${foundCurrency.code}`
+            const newCurrencyQuery = deepMergeSimple(
+              {
+                depth: 0,
+                populate: {
+                  products: {
+                    [priceField]: true,
+                  },
+                  variants: {
+                    options: true,
+                    [priceField]: true,
+                  },
+                },
+                select: {
+                  currency: true,
+                  items: true,
+                  subtotal: true,
+                },
+              },
+              cartsFetchQuery,
+            )
+            const query = qs.stringify({
+              ...newCurrencyQuery,
+              ...(cartSecret ? { secret: cartSecret } : {}),
+            })
+
+            const cartResponse = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}?${query}`, {
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              method: 'GET',
+            })
+
+            if (cartResponse.ok) {
+              const updatedCart = await cartResponse.json()
+              // Update both currency and cart state after successful fetch
+              setSelectedCurrency(foundCurrency)
+              setCart(updatedCart as CartsCollection)
+            } else if (debug) {
+              const errorText = await cartResponse.text()
+              // eslint-disable-next-line no-console
+              console.error('Error fetching cart after currency update:', errorText)
+            }
           } else if (debug) {
             const errorText = await response.text()
             // eslint-disable-next-line no-console
@@ -958,18 +1001,35 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
     }
 
     // Check if user has an existing active (unpurchased) cart
-    const activeCartDoc = fetchedUser.cart?.docs?.find((doc: any) => {
-      if (typeof doc === 'object' && doc !== null) {
-        return !doc.purchasedAt
-      }
-      return true
-    })
+    // For ID-only references, we need to fetch the cart to check purchasedAt
+    let userCartID: DefaultDocumentIDType | undefined
 
-    const userCartID = activeCartDoc
-      ? typeof activeCartDoc === 'object'
-        ? activeCartDoc.id
-        : activeCartDoc
-      : undefined
+    if (fetchedUser.cart?.docs && fetchedUser.cart.docs.length > 0) {
+      for (const doc of fetchedUser.cart.docs) {
+        if (typeof doc === 'object' && doc !== null) {
+          // Full cart object - check purchasedAt directly
+          if (!doc.purchasedAt) {
+            userCartID = doc.id
+            break
+          }
+        } else {
+          // ID-only reference - fetch to check purchasedAt
+          try {
+            const fetchedCart = await getCart(doc)
+            if (!fetchedCart.purchasedAt) {
+              userCartID = doc
+              break
+            }
+          } catch (error) {
+            // Skip cart if fetch fails
+            if (debug) {
+              // eslint-disable-next-line no-console
+              console.error('Error fetching cart to check purchasedAt:', error)
+            }
+          }
+        }
+      }
+    }
 
     if (guestCartID && guestSecret) {
       // Guest had a cart - need to handle merge/transfer
@@ -1067,11 +1127,30 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
                   headers: { 'Content-Type': 'application/json' },
                   method: 'PATCH',
                 })
-                  .then(() => getCart(storedCartID, { secret: storedSecret || undefined }))
+                  .then((response) => {
+                    if (response.ok) {
+                      // Only refetch if PATCH succeeded
+                      return getCart(storedCartID, { secret: storedSecret || undefined })
+                    } else {
+                      // Explicitly handle failed PATCH
+                      if (debug) {
+                        response.text().then((errorText) => {
+                          // eslint-disable-next-line no-console
+                          console.error('Error updating cart currency during restoration:', errorText)
+                        })
+                      }
+                      return null
+                    }
+                  })
                   .then((updated) => {
                     if (updated) setCart(updated)
                   })
-                  .catch(() => {})
+                  .catch((error) => {
+                    if (debug) {
+                      // eslint-disable-next-line no-console
+                      console.error('Error during currency restoration:', error)
+                    }
+                  })
               }
             })
             .catch((_) => {
@@ -1088,26 +1167,41 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
       hasRendered.current = true
 
-      void getUser().then((user) => {
+      void getUser().then(async (user) => {
         if (user && user.cart?.docs && user.cart.docs.length > 0) {
-          const activeUserCartDoc = user.cart.docs.find((doc: any) => {
+          // Find active (unpurchased) cart, resolving ID-only references
+          let activeCartID: DefaultDocumentIDType | undefined
+
+          for (const doc of user.cart.docs) {
             if (typeof doc === 'object' && doc !== null) {
-              return !doc.purchasedAt
+              // Full cart object - check purchasedAt directly
+              if (!doc.purchasedAt) {
+                activeCartID = doc.id
+                break
+              }
+            } else {
+              // ID-only reference - fetch to check purchasedAt
+              try {
+                const fetchedCart = await getCart(doc)
+                if (!fetchedCart.purchasedAt) {
+                  activeCartID = doc
+                  break
+                }
+              } catch (error) {
+                // Skip cart if fetch fails
+                if (debug) {
+                  // eslint-disable-next-line no-console
+                  console.error('Error fetching cart to check purchasedAt:', error)
+                }
+              }
             }
-            return true
-          })
+          }
 
-          const cartID = activeUserCartDoc
-            ? typeof activeUserCartDoc === 'object'
-              ? activeUserCartDoc.id
-              : activeUserCartDoc
-            : undefined
-
-          if (cartID) {
-            getCart(cartID)
+          if (activeCartID) {
+            getCart(activeCartID)
               .then((fetchedCart) => {
                 setCart(fetchedCart)
-                setCartID(cartID)
+                setCartID(activeCartID)
               })
               .catch((error) => {
                 if (debug) {
