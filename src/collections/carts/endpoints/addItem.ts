@@ -27,6 +27,7 @@ export const addItemEndpoint = ({ cartItemMatcher, cartsSlug }: Args): Endpoint 
 
     const cartID = req.routeParams?.id as string | undefined
     const data = req.data as {
+      currency?: string
       item?: { [key: string]: unknown; product: string; variant?: string }
       quantity?: number
       secret?: string
@@ -47,6 +48,7 @@ export const addItemEndpoint = ({ cartItemMatcher, cartsSlug }: Args): Endpoint 
       cartID,
       cartItemMatcher,
       cartsSlug,
+      currency: data.currency,
       item: data.item,
       payload: req.payload,
       quantity: data.quantity,

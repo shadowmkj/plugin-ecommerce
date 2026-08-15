@@ -270,6 +270,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
           // Use server-side endpoint for adding items
           const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/add-item`, {
             body: JSON.stringify({
+              currency: selectedCurrency.code,
               item,
               quantity,
               secret: cartSecret,
@@ -378,6 +379,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       try {
         const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/update-item`, {
           body: JSON.stringify({
+            currency: selectedCurrency.code,
             itemID: targetID,
             quantity: { $inc: 1 },
             secret: cartSecret,
@@ -429,6 +431,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       try {
         const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/update-item`, {
           body: JSON.stringify({
+            currency: selectedCurrency.code,
             itemID: targetID,
             quantity: { $inc: -1 },
             secret: cartSecret,
@@ -517,7 +520,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
   }, [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart])
 
   const setCurrency: EcommerceContextType['setCurrency'] = useCallback(
-    (currency) => {
+    async (currency) => {
       if (selectedCurrency.code === currency) {
         return
       }
@@ -528,8 +531,39 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       }
 
       setSelectedCurrency(foundCurrency)
+
+      if (cartID) {
+        try {
+          await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}`, {
+            body: JSON.stringify({
+              currency: foundCurrency.code,
+              secret: cartSecret,
+            }),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+          })
+          await refreshCart()
+        } catch (error) {
+          if (debug) {
+            // eslint-disable-next-line no-console
+            console.error('Error updating cart currency:', error)
+          }
+        }
+      }
     },
-    [currenciesConfig.supportedCurrencies, selectedCurrency.code],
+    [
+      baseAPIURL,
+      cartID,
+      cartSecret,
+      cartsSlug,
+      currenciesConfig.supportedCurrencies,
+      debug,
+      refreshCart,
+      selectedCurrency.code,
+    ],
   )
 
   const initiatePayment = useCallback<EcommerceContextType['initiatePayment']>(
@@ -1007,6 +1041,22 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
               setCartID(storedCartID as DefaultDocumentIDType)
               if (storedSecret) {
                 setCartSecret(storedSecret)
+              }
+              if (fetchedCart && fetchedCart.currency !== selectedCurrency.code) {
+                fetch(`${baseAPIURL}/${cartsSlug}/${storedCartID}`, {
+                  body: JSON.stringify({
+                    currency: selectedCurrency.code,
+                    secret: storedSecret || undefined,
+                  }),
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  method: 'PATCH',
+                })
+                  .then(() => getCart(storedCartID, { secret: storedSecret || undefined }))
+                  .then((updated) => {
+                    if (updated) setCart(updated)
+                  })
+                  .catch(() => {})
               }
             })
             .catch((_) => {

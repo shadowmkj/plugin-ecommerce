@@ -18,9 +18,10 @@ export const currencyField: (props: Props) => SelectField = ({ currenciesConfig,
   })
 
   const defaultValue =
-    (currenciesConfig.defaultCurrency ?? currenciesConfig.supportedCurrencies.length === 1)
+    currenciesConfig.defaultCurrency ||
+    (currenciesConfig.supportedCurrencies.length === 1
       ? currenciesConfig.supportedCurrencies[0]?.code
-      : undefined
+      : undefined)
 
   // @ts-expect-error - issue with payload types
   const field: SelectField = {

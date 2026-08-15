@@ -49,6 +49,7 @@ export const updateItemEndpoint = ({ cartsSlug }: Args): Endpoint => ({
 
     const cartID = req.routeParams?.id as string | undefined
     const data = req.data as {
+      currency?: string
       itemID?: string
       quantity?: FieldWithOperator<number>
       removeOnZero?: boolean
@@ -88,6 +89,7 @@ export const updateItemEndpoint = ({ cartsSlug }: Args): Endpoint => ({
     const result = await updateItem({
       cartID,
       cartsSlug,
+      currency: data.currency,
       itemID: data.itemID,
       payload: req.payload,
       quantity: data.quantity,
