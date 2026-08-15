@@ -158,6 +158,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         },
       },
       select: {
+        currency: true,
         items: true,
         subtotal: true,
       },
@@ -316,7 +317,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, createCart, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, createCart, debug, getCart, selectedCurrency.code],
   )
 
   const removeItem: EcommerceContextType['removeItem'] = useCallback(
@@ -418,7 +419,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart, selectedCurrency.code],
   )
 
   const decrementItem: EcommerceContextType['decrementItem'] = useCallback(
@@ -470,7 +471,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart, selectedCurrency.code],
   )
 
   const clearCart: EcommerceContextType['clearCart'] = useCallback(async () => {
@@ -530,11 +531,9 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         throw new Error(`Currency with code "${currency}" not found in config`)
       }
 
-      setSelectedCurrency(foundCurrency)
-
       if (cartID) {
         try {
-          await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}`, {
+          const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}`, {
             body: JSON.stringify({
               currency: foundCurrency.code,
               secret: cartSecret,
@@ -545,13 +544,23 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
             },
             method: 'PATCH',
           })
-          await refreshCart()
+
+          if (response.ok) {
+            setSelectedCurrency(foundCurrency)
+            await refreshCart()
+          } else if (debug) {
+            const errorText = await response.text()
+            // eslint-disable-next-line no-console
+            console.error('Error updating cart currency:', errorText)
+          }
         } catch (error) {
           if (debug) {
             // eslint-disable-next-line no-console
             console.error('Error updating cart currency:', error)
           }
         }
+      } else {
+        setSelectedCurrency(foundCurrency)
       }
     },
     [

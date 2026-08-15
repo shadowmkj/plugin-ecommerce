@@ -11,9 +11,11 @@ export const webhooksEndpoint: (props: Props) => Endpoint = (props) => {
   const { secretKey } = props || {}
 
   const handler: Endpoint['handler'] = async (req) => {
-    const textFn = req.text
-    if (!secretKey || !textFn) {
-      return Response.json({ error: 'Razorpay secret key or request body reader is not configured' }, { status: 500 })
+    if (!secretKey || typeof req.text !== 'function') {
+      return Response.json(
+        { error: 'Razorpay secret key or request body reader is not configured' },
+        { status: 500 },
+      )
     }
 
     const signature = req.headers.get('x-razorpay-signature')
@@ -22,7 +24,7 @@ export const webhooksEndpoint: (props: Props) => Endpoint = (props) => {
     }
 
     try {
-      const bodyText = await textFn()
+      const bodyText = await req.text()
       const expectedSignature = crypto
         .createHmac('sha256', secretKey)
         .update(bodyText)

@@ -72,4 +72,19 @@ describe('beforeChangeCart - Subtotal Multi-Currency Calculation', () => {
 
     expect(data.subtotal).toBe(2700) // 900 * 3
   })
+
+  it('should recalculate subtotal on currency-only update using originalDoc.items', async () => {
+    const data: any = {
+      currency: 'USD',
+    }
+
+    await hook({
+      data,
+      operation: 'update',
+      originalDoc: { currency: 'EUR', items: [{ product: 'prod-eur', quantity: 2 }] },
+      req: { payload: mockPayload } as any,
+    })
+
+    expect(data.subtotal).toBe(2000) // 1000 * 2 (USD price)
+  })
 })

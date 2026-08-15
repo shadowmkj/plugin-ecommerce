@@ -24,15 +24,17 @@ export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
     }
 
     // Update subtotal based on items in the cart
+    const items = data.items ?? originalDoc?.items
     const rawCurrency = data.currency || originalDoc?.currency
-    if (data.items && Array.isArray(data.items) && rawCurrency) {
+
+    if (items && Array.isArray(items) && items.length > 0 && rawCurrency) {
       const currencyCode = String(rawCurrency).toUpperCase()
       const priceField = `priceIn${currencyCode}`
 
       let subtotal = 0
 
-      for (const item of data.items) {
-        const quantity = item.quantity || 1
+      for (const item of items) {
+        const quantity = item.quantity ?? 1
 
         if (item.variant) {
           const id = typeof item.variant === 'object' ? item.variant.id : item.variant
@@ -66,7 +68,7 @@ export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
       }
 
       data.subtotal = subtotal
-    } else if (!data.items || data.items.length === 0) {
+    } else if (items && Array.isArray(items) && items.length === 0) {
       data.subtotal = 0
     }
   }
