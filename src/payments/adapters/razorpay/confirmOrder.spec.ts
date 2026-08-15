@@ -53,8 +53,8 @@ describe('confirmOrder - payment status check', () => {
     vi.clearAllMocks()
   })
 
-  it('should throw when paymentIntent status is requires_payment_method', async () => {
-    mockFetch.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
+  it('should throw when paymentIntent status is created', async () => {
+    mockFetch.mockResolvedValue(createMockPaymentIntent('created'))
 
     const mockPayload = createMockPayload()
     const handler = confirmOrder({ publishableKey, secretKey })
@@ -69,8 +69,8 @@ describe('confirmOrder - payment status check', () => {
     expect(mockPayload.create).not.toHaveBeenCalled()
   })
 
-  it('should throw when paymentIntent status is canceled', async () => {
-    mockFetch.mockResolvedValue(createMockPaymentIntent('canceled'))
+  it('should throw when paymentIntent status is failed', async () => {
+    mockFetch.mockResolvedValue(createMockPaymentIntent('failed'))
 
     const mockPayload = createMockPayload()
     const handler = confirmOrder({ publishableKey, secretKey })
@@ -85,8 +85,8 @@ describe('confirmOrder - payment status check', () => {
     expect(mockPayload.create).not.toHaveBeenCalled()
   })
 
-  it('should throw when paymentIntent status is processing', async () => {
-    mockFetch.mockResolvedValue(createMockPaymentIntent('processing'))
+  it('should throw when paymentIntent status is authorized', async () => {
+    mockFetch.mockResolvedValue(createMockPaymentIntent('authorized'))
 
     const mockPayload = createMockPayload()
     const handler = confirmOrder({ publishableKey, secretKey })
@@ -102,7 +102,7 @@ describe('confirmOrder - payment status check', () => {
   })
 
   it('should not update cart or transaction when payment has not succeeded', async () => {
-    mockFetch.mockResolvedValue(createMockPaymentIntent('requires_payment_method'))
+    mockFetch.mockResolvedValue(createMockPaymentIntent('created'))
 
     const mockPayload = createMockPayload()
     const handler = confirmOrder({ publishableKey, secretKey })
