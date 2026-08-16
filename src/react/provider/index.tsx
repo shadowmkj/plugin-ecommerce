@@ -143,29 +143,37 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<null | string>(null)
 
+  const buildCartQuery = useCallback(
+    (currencyCode: string) => {
+      const priceField = `priceIn${currencyCode}`
+
+      const baseQuery = {
+        depth: 0,
+        populate: {
+          products: {
+            [priceField]: true,
+          },
+          variants: {
+            options: true,
+            [priceField]: true,
+          },
+        },
+        select: {
+          currency: true,
+          items: true,
+          purchasedAt: true,
+          subtotal: true,
+        },
+      }
+
+      return deepMergeSimple(baseQuery, cartsFetchQuery)
+    },
+    [cartsFetchQuery],
+  )
+
   const cartQuery = useMemo(() => {
-    const priceField = `priceIn${selectedCurrency.code}`
-
-    const baseQuery = {
-      depth: 0,
-      populate: {
-        products: {
-          [priceField]: true,
-        },
-        variants: {
-          options: true,
-          [priceField]: true,
-        },
-      },
-      select: {
-        currency: true,
-        items: true,
-        subtotal: true,
-      },
-    }
-
-    return deepMergeSimple(baseQuery, cartsFetchQuery)
-  }, [selectedCurrency.code, cartsFetchQuery])
+    return buildCartQuery(selectedCurrency.code)
+  }, [buildCartQuery, selectedCurrency.code])
 
   const createCart = useCallback(
     async (initialData: Record<string, unknown>) => {
@@ -547,27 +555,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
           if (response.ok) {
             // Build query with the new currency to fetch cart with correct price fields
-            const priceField = `priceIn${foundCurrency.code}`
-            const newCurrencyQuery = deepMergeSimple(
-              {
-                depth: 0,
-                populate: {
-                  products: {
-                    [priceField]: true,
-                  },
-                  variants: {
-                    options: true,
-                    [priceField]: true,
-                  },
-                },
-                select: {
-                  currency: true,
-                  items: true,
-                  subtotal: true,
-                },
-              },
-              cartsFetchQuery,
-            )
+            const newCurrencyQuery = buildCartQuery(foundCurrency.code)
             const query = qs.stringify({
               ...newCurrencyQuery,
               ...(cartSecret ? { secret: cartSecret } : {}),
@@ -608,12 +596,13 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
     },
     [
       baseAPIURL,
+      buildCartQuery,
       cartID,
       cartSecret,
+      cartsFetchQuery,
       cartsSlug,
       currenciesConfig.supportedCurrencies,
       debug,
-      refreshCart,
       selectedCurrency.code,
     ],
   )
