@@ -9,7 +9,7 @@ type Props = {
 
 export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
   ({ productsSlug, variantsSlug }) =>
-  async ({ data, operation, req }) => {
+  async ({ data, operation, originalDoc, req }) => {
     // Generate a secret for guest cart access on creation
     if (operation === 'create' && !data.customer && !data.secret) {
       // Generate a cryptographically secure random string
@@ -24,12 +24,18 @@ export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
     }
 
     // Update subtotal based on items in the cart
-    if (data.items && Array.isArray(data.items)) {
-      const priceField = `priceIn${data.currency}`
+    const items = data.items ?? originalDoc?.items
+    const rawCurrency = data.currency || originalDoc?.currency
+
+    if (items && Array.isArray(items) && items.length > 0 && rawCurrency) {
+      const currencyCode = String(rawCurrency).toUpperCase()
+      const priceField = `priceIn${currencyCode}`
 
       let subtotal = 0
 
-      for (const item of data.items) {
+      for (const item of items) {
+        const quantity = item.quantity ?? 1
+
         if (item.variant) {
           const id = typeof item.variant === 'object' ? item.variant.id : item.variant
 
@@ -42,7 +48,8 @@ export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
             },
           })
 
-          subtotal += variant[priceField] * item.quantity
+          const price = variant?.[priceField] ?? 0
+          subtotal += price * quantity
         } else {
           const id = typeof item.product === 'object' ? item.product.id : item.product
 
@@ -55,12 +62,13 @@ export const beforeChangeCart: (args: Props) => CollectionBeforeChangeHook =
             },
           })
 
-          subtotal += product[priceField] * item.quantity
+          const price = product?.[priceField] ?? 0
+          subtotal += price * quantity
         }
       }
 
       data.subtotal = subtotal
-    } else {
+    } else if (items && Array.isArray(items) && items.length === 0) {
       data.subtotal = 0
     }
   }

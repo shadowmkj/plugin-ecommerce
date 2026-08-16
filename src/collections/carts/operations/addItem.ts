@@ -29,6 +29,7 @@ export const addItem = async (args: AddItemArgs): Promise<CartOperationResult> =
     cartID,
     cartItemMatcher = defaultCartItemMatcher,
     cartsSlug,
+    currency,
     item,
     payload,
     quantity = 1,
@@ -91,6 +92,7 @@ export const addItem = async (args: AddItemArgs): Promise<CartOperationResult> =
     collection: cartsSlug,
     data: {
       items: updatedItems,
+      ...(currency ? { currency } : {}),
     },
     depth: 0,
     overrideAccess: false,

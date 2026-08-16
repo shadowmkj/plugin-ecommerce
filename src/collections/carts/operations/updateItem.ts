@@ -42,7 +42,7 @@ import { isNumericOperator } from './types.js'
  * ```
  */
 export const updateItem = async (args: UpdateItemArgs): Promise<CartOperationResult> => {
-  const { cartID, cartsSlug, itemID, payload, quantity, removeOnZero = true, req, secret } = args
+  const { cartID, cartsSlug, currency, itemID, payload, quantity, removeOnZero = true, req, secret } = args
 
   // Inject secret into request context for access control
   const reqWithSecret = createRequestWithSecret(req, secret)
@@ -106,6 +106,7 @@ export const updateItem = async (args: UpdateItemArgs): Promise<CartOperationRes
     collection: cartsSlug,
     data: {
       items: updatedItems,
+      ...(currency ? { currency } : {}),
     },
     depth: 0,
     overrideAccess: false,

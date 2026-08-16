@@ -143,28 +143,37 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<null | string>(null)
 
+  const buildCartQuery = useCallback(
+    (currencyCode: string) => {
+      const priceField = `priceIn${currencyCode}`
+
+      const baseQuery = {
+        depth: 0,
+        populate: {
+          products: {
+            [priceField]: true,
+          },
+          variants: {
+            options: true,
+            [priceField]: true,
+          },
+        },
+        select: {
+          currency: true,
+          items: true,
+          purchasedAt: true,
+          subtotal: true,
+        },
+      }
+
+      return deepMergeSimple(baseQuery, cartsFetchQuery)
+    },
+    [cartsFetchQuery],
+  )
+
   const cartQuery = useMemo(() => {
-    const priceField = `priceIn${selectedCurrency.code}`
-
-    const baseQuery = {
-      depth: 0,
-      populate: {
-        products: {
-          [priceField]: true,
-        },
-        variants: {
-          options: true,
-          [priceField]: true,
-        },
-      },
-      select: {
-        items: true,
-        subtotal: true,
-      },
-    }
-
-    return deepMergeSimple(baseQuery, cartsFetchQuery)
-  }, [selectedCurrency.code, cartsFetchQuery])
+    return buildCartQuery(selectedCurrency.code)
+  }, [buildCartQuery, selectedCurrency.code])
 
   const createCart = useCallback(
     async (initialData: Record<string, unknown>) => {
@@ -270,6 +279,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
           // Use server-side endpoint for adding items
           const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/add-item`, {
             body: JSON.stringify({
+              currency: selectedCurrency.code,
               item,
               quantity,
               secret: cartSecret,
@@ -315,7 +325,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, createCart, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, createCart, debug, getCart, selectedCurrency.code],
   )
 
   const removeItem: EcommerceContextType['removeItem'] = useCallback(
@@ -378,6 +388,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       try {
         const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/update-item`, {
           body: JSON.stringify({
+            currency: selectedCurrency.code,
             itemID: targetID,
             quantity: { $inc: 1 },
             secret: cartSecret,
@@ -416,7 +427,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart, selectedCurrency.code],
   )
 
   const decrementItem: EcommerceContextType['decrementItem'] = useCallback(
@@ -429,6 +440,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       try {
         const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/update-item`, {
           body: JSON.stringify({
+            currency: selectedCurrency.code,
             itemID: targetID,
             quantity: { $inc: -1 },
             secret: cartSecret,
@@ -467,7 +479,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         setIsLoading(false)
       }
     },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart],
+    [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart, selectedCurrency.code],
   )
 
   const clearCart: EcommerceContextType['clearCart'] = useCallback(async () => {
@@ -517,7 +529,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
   }, [baseAPIURL, cartID, cartSecret, cartsSlug, debug, getCart])
 
   const setCurrency: EcommerceContextType['setCurrency'] = useCallback(
-    (currency) => {
+    async (currency) => {
       if (selectedCurrency.code === currency) {
         return
       }
@@ -527,9 +539,72 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
         throw new Error(`Currency with code "${currency}" not found in config`)
       }
 
-      setSelectedCurrency(foundCurrency)
+      if (cartID) {
+        try {
+          const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}`, {
+            body: JSON.stringify({
+              currency: foundCurrency.code,
+              secret: cartSecret,
+            }),
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+          })
+
+          if (response.ok) {
+            // Build query with the new currency to fetch cart with correct price fields
+            const newCurrencyQuery = buildCartQuery(foundCurrency.code)
+            const query = qs.stringify({
+              ...newCurrencyQuery,
+              ...(cartSecret ? { secret: cartSecret } : {}),
+            })
+
+            const cartResponse = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}?${query}`, {
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              method: 'GET',
+            })
+
+            if (cartResponse.ok) {
+              const updatedCart = await cartResponse.json()
+              // Update both currency and cart state after successful fetch
+              setSelectedCurrency(foundCurrency)
+              setCart(updatedCart as CartsCollection)
+            } else if (debug) {
+              const errorText = await cartResponse.text()
+              // eslint-disable-next-line no-console
+              console.error('Error fetching cart after currency update:', errorText)
+            }
+          } else if (debug) {
+            const errorText = await response.text()
+            // eslint-disable-next-line no-console
+            console.error('Error updating cart currency:', errorText)
+          }
+        } catch (error) {
+          if (debug) {
+            // eslint-disable-next-line no-console
+            console.error('Error updating cart currency:', error)
+          }
+        }
+      } else {
+        setSelectedCurrency(foundCurrency)
+      }
     },
-    [currenciesConfig.supportedCurrencies, selectedCurrency.code],
+    [
+      baseAPIURL,
+      buildCartQuery,
+      cartID,
+      cartSecret,
+      cartsFetchQuery,
+      cartsSlug,
+      currenciesConfig.supportedCurrencies,
+      debug,
+      selectedCurrency.code,
+    ],
   )
 
   const initiatePayment = useCallback<EcommerceContextType['initiatePayment']>(
@@ -914,13 +989,36 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       localStorage.removeItem(`${localStorageConfig.key}_secret`)
     }
 
-    // Check if user has an existing cart
-    const userCartID =
-      fetchedUser.cart?.docs && fetchedUser.cart.docs.length > 0
-        ? typeof fetchedUser.cart.docs[0] === 'object'
-          ? fetchedUser.cart.docs[0].id
-          : fetchedUser.cart.docs[0]
-        : undefined
+    // Check if user has an existing active (unpurchased) cart
+    // For ID-only references, we need to fetch the cart to check purchasedAt
+    let userCartID: DefaultDocumentIDType | undefined
+
+    if (fetchedUser.cart?.docs && fetchedUser.cart.docs.length > 0) {
+      for (const doc of fetchedUser.cart.docs) {
+        if (typeof doc === 'object' && doc !== null) {
+          // Full cart object - check purchasedAt directly
+          if (!doc.purchasedAt) {
+            userCartID = doc.id
+            break
+          }
+        } else {
+          // ID-only reference - fetch to check purchasedAt
+          try {
+            const fetchedCart = await getCart(doc)
+            if (!fetchedCart.purchasedAt) {
+              userCartID = doc
+              break
+            }
+          } catch (error) {
+            // Skip cart if fetch fails
+            if (debug) {
+              // eslint-disable-next-line no-console
+              console.error('Error fetching cart to check purchasedAt:', error)
+            }
+          }
+        }
+      }
+    }
 
     if (guestCartID && guestSecret) {
       // Guest had a cart - need to handle merge/transfer
@@ -1008,6 +1106,41 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
               if (storedSecret) {
                 setCartSecret(storedSecret)
               }
+              if (fetchedCart && fetchedCart.currency !== selectedCurrency.code) {
+                fetch(`${baseAPIURL}/${cartsSlug}/${storedCartID}`, {
+                  body: JSON.stringify({
+                    currency: selectedCurrency.code,
+                    secret: storedSecret || undefined,
+                  }),
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  method: 'PATCH',
+                })
+                  .then((response) => {
+                    if (response.ok) {
+                      // Only refetch if PATCH succeeded
+                      return getCart(storedCartID, { secret: storedSecret || undefined })
+                    } else {
+                      // Explicitly handle failed PATCH
+                      if (debug) {
+                        response.text().then((errorText) => {
+                          // eslint-disable-next-line no-console
+                          console.error('Error updating cart currency during restoration:', errorText)
+                        })
+                      }
+                      return null
+                    }
+                  })
+                  .then((updated) => {
+                    if (updated) setCart(updated)
+                  })
+                  .catch((error) => {
+                    if (debug) {
+                      // eslint-disable-next-line no-console
+                      console.error('Error during currency restoration:', error)
+                    }
+                  })
+              }
             })
             .catch((_) => {
               // console.error('Error fetching cart from localStorage:', error)
@@ -1023,17 +1156,41 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
       hasRendered.current = true
 
-      void getUser().then((user) => {
+      void getUser().then(async (user) => {
         if (user && user.cart?.docs && user.cart.docs.length > 0) {
-          // If the user has carts, we can set the cartID to the first cart
-          const cartID =
-            typeof user.cart.docs[0] === 'object' ? user.cart.docs[0].id : user.cart.docs[0]
+          // Find active (unpurchased) cart, resolving ID-only references
+          let activeCartID: DefaultDocumentIDType | undefined
 
-          if (cartID) {
-            getCart(cartID)
+          for (const doc of user.cart.docs) {
+            if (typeof doc === 'object' && doc !== null) {
+              // Full cart object - check purchasedAt directly
+              if (!doc.purchasedAt) {
+                activeCartID = doc.id
+                break
+              }
+            } else {
+              // ID-only reference - fetch to check purchasedAt
+              try {
+                const fetchedCart = await getCart(doc)
+                if (!fetchedCart.purchasedAt) {
+                  activeCartID = doc
+                  break
+                }
+              } catch (error) {
+                // Skip cart if fetch fails
+                if (debug) {
+                  // eslint-disable-next-line no-console
+                  console.error('Error fetching cart to check purchasedAt:', error)
+                }
+              }
+            }
+          }
+
+          if (activeCartID) {
+            getCart(activeCartID)
               .then((fetchedCart) => {
                 setCart(fetchedCart)
-                setCartID(cartID)
+                setCartID(activeCartID)
               })
               .catch((error) => {
                 if (debug) {

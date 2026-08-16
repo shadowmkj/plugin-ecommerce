@@ -77,13 +77,22 @@ export const initiatePaymentHandler: InitiatePayment =
 
       if (user) {
         if (user.cart?.docs && Array.isArray(user.cart.docs) && user.cart.docs.length > 0) {
-          if (!cartID && user.cart.docs[0]) {
-            // Use the user's cart instead
-            if (typeof user.cart.docs[0] === 'object') {
-              cartID = user.cart.docs[0].id
-              cart = user.cart.docs[0]
-            } else {
-              cartID = user.cart.docs[0]
+          if (!cartID) {
+            const activeCartDoc =
+              user.cart.docs.find((doc: any) => {
+                if (typeof doc === 'object' && doc !== null) {
+                  return !doc.purchasedAt
+                }
+                return true
+              }) || user.cart.docs[0]
+
+            if (activeCartDoc) {
+              if (typeof activeCartDoc === 'object') {
+                cartID = activeCartDoc.id
+                cart = activeCartDoc
+              } else {
+                cartID = activeCartDoc
+              }
             }
           }
         }
@@ -103,7 +112,7 @@ export const initiatePaymentHandler: InitiatePayment =
         }
       }
 
-      if (!cart) {
+      if (!cart || !cart.items || !Array.isArray(cart.items)) {
         if (cartID) {
           // Add cart secret to query for guest cart access control
           if (cartSecret && typeof cartSecret === 'string') {
@@ -122,6 +131,7 @@ export const initiatePaymentHandler: InitiatePayment =
               currency: true,
               customerEmail: true,
               items: true,
+              purchasedAt: true,
               subtotal: true,
             },
           })
@@ -146,6 +156,17 @@ export const initiatePaymentHandler: InitiatePayment =
             },
           )
         }
+      }
+
+      if (cart.purchasedAt) {
+        return Response.json(
+          {
+            message: 'This cart has already been purchased.',
+          },
+          {
+            status: 400,
+          },
+        )
       }
 
       if (cart.currency && typeof cart.currency === 'string') {
@@ -309,6 +330,52 @@ export const initiatePaymentHandler: InitiatePayment =
             }
           }
         }
+      }
+
+      // Cancel any existing pending transactions for this cart to allow a clean retry
+      try {
+        const existingPending = await payload.find({
+          collection: transactionsSlug,
+          req,
+          where: {
+            and: [
+              {
+                cart: {
+                  equals: cart.id,
+                },
+              },
+              {
+                status: {
+                  equals: 'pending',
+                },
+              },
+            ],
+          },
+        })
+
+        if (existingPending?.docs && existingPending.docs.length > 0) {
+          for (const pendingTx of existingPending.docs) {
+            await payload.update({
+              id: pendingTx.id,
+              collection: transactionsSlug,
+              data: {
+                status: 'cancelled',
+              },
+              req,
+            })
+          }
+        }
+      } catch (err) {
+        // If cleanup fails, propagate the error to prevent initiating a new payment with inconsistent state
+        payload.logger.error(err, 'Failed to cleanup pending transactions')
+        return Response.json(
+          {
+            message: 'Failed to cleanup pending transactions. Please try again.',
+          },
+          {
+            status: 500,
+          },
+        )
       }
 
       try {

@@ -82,6 +82,8 @@ export type BaseCartOperationArgs = {
   cartID: DefaultDocumentIDType
   /** The carts collection slug */
   cartsSlug: string
+  /** Optional currency override to update on the cart */
+  currency?: string
   /** Payload instance */
   payload: Payload
   /** Optional request context for access control */
