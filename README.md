@@ -190,6 +190,156 @@ function CartSummary() {
 
 ---
 
+## 📚 Tutorial: Setting Up & Using Multi-Currency
+
+`@shadowmkj/plugin-ecommerce` provides end-to-end multi-currency support out of the box, including dynamic schema generation, administrative input controls, real-time cart subtotal recalculation, and client-side React hooks.
+
+Follow this step-by-step tutorial to configure and use multi-currency in your project.
+
+---
+
+### Step 1: Define Currencies in `payload.config.ts`
+
+Configure your default currency and all supported currencies in your Payload CMS plugin configuration:
+
+```typescript
+import { buildConfig } from 'payload'
+import { ecommercePlugin } from '@shadowmkj/plugin-ecommerce'
+
+export default buildConfig({
+  plugins: [
+    ecommercePlugin({
+      currencies: {
+        defaultCurrency: 'USD',
+        supportedCurrencies: [
+          { code: 'USD', symbol: '$', label: 'US Dollar', decimals: 2 },
+          { code: 'EUR', symbol: '€', label: 'Euro', decimals: 2 },
+          { code: 'INR', symbol: '₹', label: 'Indian Rupee', decimals: 2 },
+        ],
+      },
+    }),
+  ],
+})
+```
+
+> **What happens under the hood:**
+> For every currency specified in `supportedCurrencies`, the plugin automatically generates dedicated price input fields (`priceInUSD`, `priceInEUR`, `priceInINR`) on the `products` and `variants` collections in Payload Admin.
+
+---
+
+### Step 2: Wrap Your Application with `EcommerceProvider`
+
+In your Next.js / React application root layout, wrap your components with `EcommerceProvider`:
+
+```tsx
+'use client'
+import React from 'react'
+import { EcommerceProvider } from '@shadowmkj/plugin-ecommerce/client/react'
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <EcommerceProvider>
+      {children}
+    </EcommerceProvider>
+  )
+}
+```
+
+---
+
+### Step 3: Build a Currency Switcher Component
+
+Use the `useCurrency()` hook to display a currency dropdown selector:
+
+```tsx
+'use client'
+import React from 'react'
+import { useCurrency } from '@shadowmkj/plugin-ecommerce/client/react'
+
+export function CurrencySelector() {
+  const { currency, setCurrency, supportedCurrencies } = useCurrency()
+
+  return (
+    <select
+      value={currency.code}
+      onChange={(e) => setCurrency(e.target.value)}
+      aria-label="Select Currency"
+    >
+      {supportedCurrencies.map((c) => (
+        <option key={c.code} value={c.code}>
+          {c.label} ({c.symbol})
+        </option>
+      ))}
+    </select>
+  )
+}
+```
+
+---
+
+### Step 4: Display Dynamic Product Prices
+
+Create a price component that automatically resolves the active currency field on product or variant objects:
+
+```tsx
+'use client'
+import React from 'react'
+import { useCurrency } from '@shadowmkj/plugin-ecommerce/client/react'
+
+export function ProductPrice({ product }: { product: { [key: string]: any } }) {
+  const { currency } = useCurrency()
+
+  // Dynamically resolve the price field key (e.g. 'priceInUSD', 'priceInEUR')
+  const priceField = `priceIn${currency.code}`
+  const rawPrice = product[priceField] ?? 0
+
+  return (
+    <span className="product-price">
+      {currency.symbol}
+      {rawPrice.toFixed(currency.decimals)}
+    </span>
+  )
+}
+```
+
+---
+
+### Step 5: Add Items to Cart & Handle Automatic Currency Syncing
+
+Use `useCart()` alongside `useCurrency()` to interact with the shopping cart. When a user switches currency, the plugin automatically updates the cart on the backend and recalculates the subtotal in the active currency:
+
+```tsx
+'use client'
+import React from 'react'
+import { useCart, useCurrency } from '@shadowmkj/plugin-ecommerce/client/react'
+
+export function ProductCard({ product }: { product: any }) {
+  const { addItem } = useCart()
+  const { currency } = useCurrency()
+
+  const priceField = `priceIn${currency.code}`
+  const price = product[priceField] ?? 0
+
+  return (
+    <div className="product-card">
+      <h3>{product.title}</h3>
+      <p>Price: {currency.symbol}{price.toFixed(currency.decimals)}</p>
+      <button onClick={() => addItem(product.id, 1)}>
+        Add to Cart
+      </button>
+    </div>
+  )
+}
+```
+
+> **Note on Automatic Subtotal Recalculation:**
+> When `setCurrency('EUR')` is called:
+> 1. A `PATCH` request updates `cart.currency` to `'EUR'` on the backend.
+> 2. The backend `beforeChangeCart` hook fetches prices (`priceInEUR`) for all cart items and updates `cart.subtotal`.
+> 3. The React provider refetches the cart with EUR price populates, seamlessly updating client state.
+
+---
+
 ## 🖥️ Development & Scripts
 
 ```bash
