@@ -1156,6 +1156,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
       hasRendered.current = true
 
       void getUser().then(async (user) => {
+        if (user && user.cart?.docs && user.cart.docs.length > 0) {
           // Find active (unpurchased) cart, resolving ID-only references
           let activeCartID: DefaultDocumentIDType | undefined
 
@@ -1183,6 +1184,7 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
               }
             }
           }
+
           if (activeCartID) {
             getCart(activeCartID)
               .then((fetchedCart) => {

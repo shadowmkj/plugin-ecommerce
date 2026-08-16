@@ -2,14 +2,20 @@ import type { CollectionSlug, Endpoint } from 'payload'
 
 import { addDataAndFileToRequest } from 'payload'
 
-import type { CartsCollection, PaymentAdapter } from '../types/index.js'
+import type {
+  CartsCollection,
+  CurrenciesConfig,
+  PaymentAdapter,
+  ProductsConfig,
+} from '../types/index.js'
 
 type Args = {
   cartsSlug: CollectionSlug
-  customersSlug: CollectionSlug
+  currenciesConfig: CurrenciesConfig
   ordersSlug: CollectionSlug
-  paymentMethods: PaymentAdapter[]
+  paymentMethod: PaymentAdapter
   productsSlug: CollectionSlug
+  productsValidation?: NonNullable<ProductsConfig>['validation']
   transactionsSlug: CollectionSlug
   variantsSlug: CollectionSlug
 }
@@ -18,72 +24,18 @@ type Args = {
  * Creates an endpoint handler for confirming an order and processing payment.
  *
  * Route: POST /api/payments/{paymentMethodID}/confirm
- *
- * Request body:
- * - cartID: string (required if cart is not populated)
- * - cart: object (optional, cart document)
- * - customerEmail: string (optional, for guest checkout)
- * - ... payment-specific data (e.g., paymentIntentID, paymentMethodID)
- *
- * @example
- * ```ts
- * fetch('/api/payments/stripe/confirm', {
- *   method: 'POST',
- *   body: JSON.stringify({
- *     cartID: '123',
- *     paymentIntentID: 'pi_xxx'
- *   })
- * })
- * ```
  */
-export const confirmOrderEndpoint = ({
+export const confirmOrderHandler = ({
   cartsSlug,
   customersSlug,
   ordersSlug,
-  paymentMethods,
+  paymentMethod,
   productsSlug,
   transactionsSlug,
   variantsSlug,
-}: Args): Endpoint => ({
-  handler: async (req) => {
+}: Args & { customersSlug?: CollectionSlug }): Endpoint['handler'] => {
+  return async (req) => {
     await addDataAndFileToRequest(req)
-
-    const paymentMethodID = req.routeParams?.paymentMethod as string | undefined
-
-    if (!paymentMethodID) {
-      return Response.json(
-        {
-          message: 'Payment method is required.',
-        },
-        {
-          status: 400,
-        },
-      )
-    }
-
-    const paymentMethod = paymentMethods.find((method) => method.name === paymentMethodID)
-
-    if (!paymentMethod) {
-      return Response.json(
-        {
-          message: `Payment method with name "${paymentMethodID}" not found.`,
-        },
-        {
-          status: 404,
-        },
-      )
-    }
-
-    if (!paymentMethod.confirmOrder) {
-      return Response.json(
-        {
-          message: `Payment method "${paymentMethodID}" does not support confirming orders.`,
-        },
-        {
-          status: 400,
-        },
-      )
-    }
 
     const data = (req.data || {}) as Record<string, unknown>
     let customerEmail = data.customerEmail as string | undefined
@@ -115,7 +67,7 @@ export const confirmOrderEndpoint = ({
           req.query.secret = cartSecret
         }
 
-        cart = await req.payload.findByID({
+        cart = (await req.payload.findByID({
           id: cartID,
           collection: cartsSlug,
           depth: 2,
@@ -129,7 +81,7 @@ export const confirmOrderEndpoint = ({
             purchasedAt: true,
             subtotal: true,
           },
-        })
+        })) as CartsCollection
 
         if (!cart) {
           return Response.json(
@@ -180,9 +132,9 @@ export const confirmOrderEndpoint = ({
     }
 
     try {
-      const paymentResponse = await paymentMethod.confirmOrder({
+      const paymentResponse = await paymentMethod.confirmOrder!({
         cartsSlug,
-        customersSlug,
+        customersSlug: customersSlug ?? 'customers',
         data: {
           ...data,
           customerEmail,
@@ -193,7 +145,7 @@ export const confirmOrderEndpoint = ({
       })
 
       if (paymentResponse.transactionID) {
-        const transaction = await payload.findByID({
+        const transaction = await req.payload.findByID({
           id: paymentResponse.transactionID,
           collection: transactionsSlug,
           depth: 0,
@@ -216,7 +168,7 @@ export const confirmOrderEndpoint = ({
             if (item.variant) {
               const id = typeof item.variant === 'object' ? item.variant.id : item.variant
 
-              await payload.db.updateOne({
+              await req.payload.db.updateOne({
                 id,
                 collection: variantsSlug,
                 data: {
@@ -228,7 +180,7 @@ export const confirmOrderEndpoint = ({
             } else if (item.product) {
               const id = typeof item.product === 'object' ? item.product.id : item.product
 
-              await payload.db.updateOne({
+              await req.payload.db.updateOne({
                 id,
                 collection: productsSlug,
                 data: {
@@ -240,7 +192,7 @@ export const confirmOrderEndpoint = ({
             }
           }
 
-          await payload.update({
+          await req.payload.update({
             id: transaction.id,
             collection: transactionsSlug,
             data: {
@@ -256,7 +208,7 @@ export const confirmOrderEndpoint = ({
 
       return Response.json(paymentResponse)
     } catch (error) {
-      payload.logger.error(error, 'Error confirming order.')
+      req.payload.logger.error(error, 'Error confirming order.')
 
       return Response.json(
         {
@@ -267,7 +219,5 @@ export const confirmOrderEndpoint = ({
         },
       )
     }
-  },
-  method: 'post',
-  path: '/payments/:paymentMethod/confirm',
-})
+  }
+}
