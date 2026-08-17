@@ -273,59 +273,157 @@ export const EcommerceProvider: React.FC<ContextProps> = ({
 
   const addItem: EcommerceContextType['addItem'] = useCallback(
     async (item, quantity = 1) => {
-      setIsLoading(true)
-      try {
-        if (cartID) {
-          // Use server-side endpoint for adding items
-          const response = await fetch(`${baseAPIURL}/${cartsSlug}/${cartID}/add-item`, {
+    setIsLoading(true)
+
+    try {
+      const defaultCurrency = currenciesConfig?.defaultCurrency
+
+      // --------------------------------------------------
+      // Helper: create a fresh cart
+      // --------------------------------------------------
+      const createNewCart = async () => {
+        const newCart = await createCart({
+          currency: defaultCurrency,
+          items: [
+            {
+              ...item,
+              quantity,
+            },
+          ],
+        })
+
+        setCartID(newCart.id)
+        setCart(newCart)
+
+        return newCart
+      }
+
+      // --------------------------------------------------
+      // Existing cart
+      // --------------------------------------------------
+      if (cartID) {
+        const currentCart = await getCart(cartID, {
+          secret: cartSecret,
+        })
+
+        // --------------------------------------------------
+        // IMPORTANT:
+        // Never add items to a purchased cart.
+        // Create a new cart instead.
+        // --------------------------------------------------
+        if (currentCart?.purchasedAt) {
+          console.log(
+            'Existing cart is already purchased. Creating new cart.',
+          )
+
+          // Old cart is finished.
+          // Do NOT modify it.
+          setCartID(undefined)
+          setCart(undefined)
+          setCartSecret(undefined)
+
+          await createNewCart()
+
+          return
+        }
+
+        // --------------------------------------------------
+        // Currency changed:
+        // Do NOT update the existing cart.
+        // Create a new cart with the new currency instead.
+        // --------------------------------------------------
+        if (
+          defaultCurrency &&
+          currentCart?.currency !== defaultCurrency
+        ) {
+          console.log(
+            `Cart currency ${currentCart?.currency} differs from default currency ${defaultCurrency}. Creating new cart.`,
+          )
+
+          // Forget old cart locally.
+          // We leave the old cart untouched in the database.
+          setCartID(undefined)
+          setCart(undefined)
+          setCartSecret(undefined)
+
+          await createNewCart()
+
+          return
+        }
+
+        // --------------------------------------------------
+        // Existing cart is valid:
+        // Add item to existing cart
+        // --------------------------------------------------
+        const response = await fetch(
+          `${baseAPIURL}/${cartsSlug}/${cartID}/add-item`,
+          {
             body: JSON.stringify({
-              currency: selectedCurrency.code,
               item,
               quantity,
               secret: cartSecret,
+              currency: defaultCurrency,
             }),
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
             },
             method: 'POST',
-          })
+          },
+        )
 
-          if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(`Failed to add item: ${errorText}`)
-          }
+        if (!response.ok) {
+          const errorText = await response.text()
 
-          const result = await response.json()
-
-          if (!result.success) {
-            // Cart not found - reset state
-            setCartID(undefined)
-            setCart(undefined)
-            setCartSecret(undefined)
-            return
-          }
-
-          // Refresh cart with proper depth/populate settings for UI
-          const refreshedCart = await getCart(cartID, { secret: cartSecret })
-          setCart(refreshedCart)
-        } else {
-          // If no cartID exists, create a new cart with the item
-          const newCart = await createCart({ items: [{ ...item, quantity }] })
-
-          setCartID(newCart.id)
-          setCart(newCart)
+          throw new Error(
+            `Failed to add item: ${errorText}`,
+          )
         }
-      } catch (error) {
-        if (debug) {
-          // eslint-disable-next-line no-console
-          console.error('Error adding item to cart:', error)
+
+        const result = await response.json()
+
+        if (!result.success) {
+          // Cart is no longer usable.
+          setCartID(undefined)
+          setCart(undefined)
+          setCartSecret(undefined)
+
+          return
         }
-      } finally {
-        setIsLoading(false)
+
+        // --------------------------------------------------
+        // Refresh cart
+        // --------------------------------------------------
+        const refreshedCart = await getCart(cartID, {
+          secret: cartSecret,
+        })
+
+        setCart(refreshedCart)
+      } else {
+        // --------------------------------------------------
+        // No existing cart:
+        // Create a new cart
+        // --------------------------------------------------
+        await createNewCart()
       }
-    },
-    [baseAPIURL, cartID, cartSecret, cartsSlug, createCart, debug, getCart, selectedCurrency.code],
+    } catch (error) {
+      if (debug) {
+        console.error('Error adding item to cart:', error)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  },
+  [
+    baseAPIURL,
+    cartID,
+    cartSecret,
+    cartsSlug,
+    createCart,
+    currenciesConfig,
+    debug,
+    getCart,
+  ],
   )
 
   const removeItem: EcommerceContextType['removeItem'] = useCallback(
